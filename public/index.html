@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypted Chat</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="control-panel">
+        <button id="create-user-button">Create User</button>
+        <button id="login-button">Login</button>
+        <button id="delete-user-button">Delete User</button>
+        <button id="logout-button" style="display: none;">Logout</button>
+    </div>
+    <h2 id="logged-in-user"></h2>
+    <div id="user-list-container">
+        <h3>Online Users</h3>
+        <div id="user-list"></div>
+    </div>
+    <div id="chat-container"></div>
+    <input id="message-input" type="text" placeholder="Type your message">
+    <button id="send-button">Send</button>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
