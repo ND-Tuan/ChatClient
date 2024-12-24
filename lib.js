@@ -27,6 +27,12 @@ function bufferToString (arr) {
   return Buffer.from(arr).toString()
 }
 
+function stringToBuffer (str) {
+  // Converts from string to ArrayBuffer
+  // Used to go from string to input for encryptWithGCM
+  return Buffer.from(str).buffer
+}
+
 function genRandomSalt (len = 16) {
   // Used to generate IVs for AES encryption
   // Used in combination with encryptWithGCM and decryptWithGCM
@@ -50,6 +56,14 @@ async function jsonToCryptoKey (jwk, algorithm, usages) {
     true, // Extractable (set to true for exportability)
     usages // Key usages: ['encrypt', 'decrypt'], ['sign', 'verify'], etc.
   )
+}
+
+function ArrayBuffertoBuffer(byteArray) {
+  return Buffer.from(byteArray);
+}
+
+async function BufferToArrayBuffer(buffer) {
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
 async function generateEG () {
@@ -206,6 +220,7 @@ function byteArrayToString (arr) {
 module.exports = {
   govEncryptionDataStr,
   bufferToString,
+  stringToBuffer,
   genRandomSalt,
   cryptoKeyToJSON,
   jsonToCryptoKey,
@@ -221,5 +236,7 @@ module.exports = {
   signWithECDSA,
   subtle,
   exportKeyToRaw,
+  ArrayBuffertoBuffer,
+  BufferToArrayBuffer,
   byteArrayToString
 }

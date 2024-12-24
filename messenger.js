@@ -69,6 +69,8 @@ class MessengerClient {
    */
 
   async receiveCertificate (certificate, signature) {
+    
+
     const isValid = await verifyWithECDSA(this.caPublicKey, JSON.stringify(certificate), signature)
     if (!isValid) {
       throw new Error('Invalid certificate signature')

@@ -1,22 +1,30 @@
 {
   "name": "cs255_proj2",
   "version": "1.0.0",
-  "description": "",
   "main": "messenger.js",
   "scripts": {
     "test": "mocha",
     "lint": "standard | snazzy",
-    "lint-fix": "standard --fix | snazzy"
+    "lint-fix": "standard --fix | snazzy",
+    "start": "node server.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "mocha": "^11.0.1"
+    "express": "^4.21.2",
+    "mocha": "^11.0.1",
+    "socket.io": "^4.8.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "snazzy": "^9.0.0",
     "standard": "^17.0.0"
-  }
+  },
+  "directories": {
+    "test": "test"
+  },
+  "keywords": [],
+  "description": ""
 }

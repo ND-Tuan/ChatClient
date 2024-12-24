@@ -93,6 +93,7 @@ describe('Messenger', function () {
       await bob.receiveCertificate(aliceCertificate, aliceCertSignature)
       const message = 'Hello, Bob'
       const ct = await alice.sendMessage('bob', message)
+
       const result = await bob.receiveMessage('alice', ct)
       expect(result).to.equal(message)
     })

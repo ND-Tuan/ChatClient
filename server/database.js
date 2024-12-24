@@ -2,12 +2,30 @@ const sqlite3 = require('sqlite3').verbose();
 
 const db = new sqlite3.Database('./chatApp.db');
 
+const {
+    BufferToArrayBuffer,
+    ArrayBuffertoBuffer
+} = require('../lib.js')
+
 // Tạo bảng user và message nếu chưa tồn tại
 db.serialize(() => {
+    db.run(`DROP TABLE IF EXISTS users`);
+
+    db.run(`DROP TABLE IF EXISTS messages`);
+
+    //tạo bảng KeyPairs (gồm caKeyPair và govKeyPair) (type: ca, gov)
+    db.run(`CREATE TABLE IF NOT EXISTS KeyPairs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT,
+        publicKey TEXT,
+        privateKey TEXT
+      )`);
+
     db.run(`
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
             publicKey TEXT,
+            CertSignature BLOB,
             isActive INTEGER DEFAULT 0
         )
     `);
@@ -17,7 +35,9 @@ db.serialize(() => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sender TEXT,
             recipient TEXT,
+            header TEXT,
             ciphertext TEXT,
+            ctinGOV TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
@@ -41,12 +61,47 @@ db.serialize(() => {
     });
 });
 
+// Lưu keypair vào database
+async function saveKeyPair(type, keyPair) { //(type: ca, gov)
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO KeyPairs (type, publicKey, privateKey) VALUES (?, ?, ?)`, 
+        [type, JSON.stringify(keyPair.pub), JSON.stringify(keyPair.sec)], 
+        function(err) {
+
+            if (err) {
+                return reject(err);
+            }
+                resolve(this.lastID);
+        });
+    });
+}
+
+// Lấy keypair từ database
+async function getKeyPair(type) { //(type: ca, gov)
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT publicKey, privateKey FROM KeyPairs WHERE type = ?`, [type], (err, row) => {
+            if (err) {
+                return reject(err);
+            }
+            if (row && row.publicKey && row.privateKey) {
+                resolve({
+                    pub: JSON.parse(row.publicKey),
+                    sec: JSON.parse(row.privateKey)
+                });
+            } else {
+                resolve(null);
+            }
+        });
+    });
+}
+
 // Thêm user mới
-function addUser(username, publicKey) {
+function addUser(username, publicKey, CertSignature) {
     return new Promise((resolve, reject) => {
         db.run(
-            `INSERT INTO users (username, publicKey) VALUES (?, ?)`,
-            [username, publicKey],
+            `INSERT INTO users (username, publicKey, CertSignature) VALUES (?, ?, ?)`,
+            [username, JSON.stringify(publicKey), ArrayBuffertoBuffer(CertSignature)],
             (err) => {
                 if (err) reject(err);
                 else resolve();
@@ -82,12 +137,25 @@ function getAllUsers() {
     });
 }
 
-// Lấy thông tin user
 function getUser(username) {
     return new Promise((resolve, reject) => {
-        db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
+        db.get(`SELECT username, publicKey, CertSignature FROM users WHERE username = ?`, [username], (err, row) => {
+            if (err) {
+                reject(err);
+            } else {
+                if (row) {
+                    const certificate = {
+                        username: row.username,
+                        pubKey: JSON.parse(row.publicKey)
+                    };
+                    resolve({
+                        certificate,
+                        Signature: BufferToArrayBuffer(row.CertSignature)
+                    });
+                } else {
+                    resolve(null);
+                }
+            }
         });
     });
 }
@@ -121,11 +189,11 @@ function isUserActive(username) {
 }
 
 // Thêm tin nhắn mới
-function addMessage(sender, recipient, ciphertext) {
+function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
     return new Promise((resolve, reject) => {
         db.run(
-            `INSERT INTO messages (sender, recipient, ciphertext) VALUES (?, ?, ?)`,
-            [sender, recipient, ciphertext],
+            `INSERT INTO messages (sender, recipient, header, ciphertext, ctinGOV) VALUES (?, ?, ?, ?, ?)`,
+            [sender, recipient, JSON.stringify(header), ciphertext, ctinGOV],
             (err) => {
                 if (err) reject(err);
                 else resolve();
@@ -138,17 +206,27 @@ function addMessage(sender, recipient, ciphertext) {
 function getMessagesForUser(username) {
     return new Promise((resolve, reject) => {
         db.all(
-            `SELECT * FROM messages WHERE sender = ? OR recipient = ? ORDER BY timestamp`,
+            `SELECT sender, recipient, header, ciphertext, ctinGOV FROM messages WHERE sender = ? OR recipient = ? ORDER BY timestamp`,
             [username, username],
             (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows);
+                if (err) {
+                    reject(err);
+                } else {
+                    const messages = rows.map(row => ({
+                        sender: row.sender,
+                        recipient: row.recipient,
+                        ct: [JSON.parse(row.header), row.ciphertext, row.ctinGOV]
+                    }));
+                    resolve(messages);
+                }
             }
         );
     });
 }
 
 module.exports = {
+    saveKeyPair,
+    getKeyPair,
     addUser,
     deleteUser,
     getAllUsers,

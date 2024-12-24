@@ -16,11 +16,10 @@ const loggedInUserDisplay = document.getElementById('logged-in-user');
 // Đăng ký user
 createUserButton.addEventListener('click', async () => {
     const username = prompt('Enter new username:');
-    const publicKey = 'dummyPublicKey'; // Thay bằng khóa thực tế
     const response = await fetch('/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, publicKey }),
+        body: JSON.stringify({ username}),
     });
 
     if (response.ok) {
@@ -64,11 +63,10 @@ socket.on('updateUsers', (users) => {
 });
 
 // Đăng nhập thành công
-socket.on('loginSuccess', ({ username, messages }) => {
+socket.on('loginSuccess', ({ username}) => {
     myUsername = username;
     loggedInUserDisplay.textContent = `Logged in as: ${myUsername}`;
     toggleLoginButtons(false); // Ẩn các nút khác, hiển thị Logout
-    displayMessages(messages);
 });
 
 // Lỗi đăng nhập
@@ -96,9 +94,9 @@ sendButton.addEventListener('click', () => {
 
 // Hiển thị tin nhắn nhận được
 socket.on('message', (data) => {
-    const { sender, ciphertext } = data;
+    const { sender} = data;
     if (currentRecipient === sender) {
-        addMessageToChat(`${sender}: ${ciphertext}`);
+        loadChatWithUser(sender);
     }
 });
 
@@ -139,13 +137,13 @@ function addMessageToChat(message) {
     chatContainer.appendChild(messageElement);
 }
 
-// Hiển thị tất cả tin nhắn
-function displayMessages(messages) {
-    chatContainer.innerHTML = '';
-    messages.forEach((msg) => {
-        addMessageToChat(`${msg.sender}: ${msg.ciphertext}`);
-    });
-}
+// // Hiển thị tất cả tin nhắn
+// function displayMessages(messages) {
+//     chatContainer.innerHTML = '';
+//     messages.forEach((msg) => {
+//         addMessageToChat(`${msg.sender}: ${msg.ciphertext}`);
+//     });
+// }
 
 // Toggle các nút đăng nhập/đăng ký và Logout
 function toggleLoginButtons(isVisible) {
