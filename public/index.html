@@ -3,24 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encrypted Chat</title>
+    <title>Messenger Chat</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="control-panel">
-        <button id="create-user-button">Create User</button>
-        <button id="login-button">Login</button>
-        <button id="delete-user-button">Delete User</button>
-        <button id="logout-button" style="display: none;">Logout</button>
+    <div id="app">
+        <!-- Sidebar (Danh sách người dùng) -->
+        <div id="sidebar">
+            <div id="auth-section">
+                <button id="create-user-button">Create User</button>
+                <button id="login-button">Login</button>
+                <button id="delete-user-button">Delete User</button>
+                <button id="logout-button" style="display: none;">Logout</button>
+            </div>
+            <p id="logged-in-user"></p>
+            <div id="user-list" class="user-list">
+                <!-- Danh sách người dùng -->
+            </div>
+        </div>
+
+        <!-- Chat Window -->
+        <div id="chat-window">
+            <div id="chat-container" class="chat-container">
+                <!-- Nội dung chat -->
+            </div>
+            <div id="chat-input">
+                <input id="message-input" type="text" placeholder="Type your message here..." />
+                <button id="send-button">Send</button>
+                <form id="file-upload-form" style="display: inline;">
+                    <input id="file-input" type="file" style="display: none;" />
+                    <button id="upload-file-button" type="button">📁</button>
+                </form>
+            </div>
+        </div>
     </div>
-    <h2 id="logged-in-user"></h2>
-    <div id="user-list-container">
-        <h3>Online Users</h3>
-        <div id="user-list"></div>
-    </div>
-    <div id="chat-container"></div>
-    <input id="message-input" type="text" placeholder="Type your message">
-    <button id="send-button">Send</button>
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
