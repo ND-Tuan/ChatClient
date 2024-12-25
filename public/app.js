@@ -12,6 +12,8 @@ const loginButton = document.getElementById('login-button');
 const deleteUserButton = document.getElementById('delete-user-button');
 const logoutButton = document.getElementById('logout-button');
 const loggedInUserDisplay = document.getElementById('logged-in-user');
+const fileInput = document.getElementById('file-input');
+const uploadFileButton = document.getElementById('upload-file-button');
 
 // Đăng ký user
 createUserButton.addEventListener('click', async () => {
@@ -19,7 +21,7 @@ createUserButton.addEventListener('click', async () => {
     const response = await fetch('/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username}),
+        body: JSON.stringify({ username }),
     });
 
     if (response.ok) {
@@ -63,7 +65,7 @@ socket.on('updateUsers', (users) => {
 });
 
 // Đăng nhập thành công
-socket.on('loginSuccess', ({ username}) => {
+socket.on('loginSuccess', ({ username }) => {
     myUsername = username;
     loggedInUserDisplay.textContent = `Logged in as: ${myUsername}`;
     toggleLoginButtons(false); // Ẩn các nút khác, hiển thị Logout
@@ -85,34 +87,58 @@ sendButton.addEventListener('click', () => {
             ciphertext: message,
         });
 
-        addMessageToChat(`You: ${message}`);
+        addMessageToChat(`You: ${message}`, 'sent');
         messageInput.value = '';
     } else {
         alert('Please select a user to chat with.');
     }
 });
 
-// Hiển thị tin nhắn nhận được
-socket.on('message', (data) => {
-    const { sender} = data;
+// Xử lý tin nhắn nhận được
+socket.on('message', ({ sender, ciphertext }) => {
     if (currentRecipient === sender) {
-        loadChatWithUser(sender);
+        addMessageToChat(`${sender}: ${ciphertext}`, 'received');
     }
 });
 
-// Cập nhật danh sách user
+// Xử lý file upload
+uploadFileButton.addEventListener('click', () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file || !currentRecipient) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/upload', {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (response.ok) {
+        const { url } = await response.json();
+        socket.emit('fileMessage', { sender: myUsername, recipient: currentRecipient, url, filename: file.name });
+
+        addMessageToChat(`You sent a file: <a href="${url}" target="_blank">${file.name}</a>`, 'sent');
+    }
+});
+
+// Hiển thị danh sách user
 function updateUserList(users) {
     userListContainer.innerHTML = '';
     users.forEach((user) => {
         if (user !== myUsername) {
-            const userElement = document.createElement('button');
-            userElement.textContent = user;
-            userElement.className = 'user-button';
-            userElement.onclick = () => {
+            const userButton = document.createElement('button');
+            userButton.textContent = user;
+            userButton.className = 'user-button';
+            userButton.onclick = () => {
                 currentRecipient = user;
                 loadChatWithUser(user);
             };
-            userListContainer.appendChild(userElement);
+            userListContainer.appendChild(userButton);
         }
     });
 }
@@ -126,24 +152,21 @@ async function loadChatWithUser(user) {
     messages
         .filter((msg) => msg.sender === user || msg.recipient === user)
         .forEach((msg) => {
-            addMessageToChat(`${msg.sender}: ${msg.ciphertext}`);
+            if (msg.url) {
+                addMessageToChat(`<a href="${msg.url}" target="_blank">${msg.filename}</a>`, msg.sender === myUsername ? 'sent' : 'received');
+            } else {
+                addMessageToChat(`${msg.sender}: ${msg.ciphertext}`, msg.sender === myUsername ? 'sent' : 'received');
+            }
         });
 }
 
-// Thêm tin nhắn vào chat box
-function addMessageToChat(message) {
+// Hiển thị tin nhắn trong box chat
+function addMessageToChat(message, type) {
     const messageElement = document.createElement('div');
-    messageElement.textContent = message;
+    messageElement.innerHTML = message;
+    messageElement.className = `chat-message ${type}-message`;
     chatContainer.appendChild(messageElement);
 }
-
-// // Hiển thị tất cả tin nhắn
-// function displayMessages(messages) {
-//     chatContainer.innerHTML = '';
-//     messages.forEach((msg) => {
-//         addMessageToChat(`${msg.sender}: ${msg.ciphertext}`);
-//     });
-// }
 
 // Toggle các nút đăng nhập/đăng ký và Logout
 function toggleLoginButtons(isVisible) {
