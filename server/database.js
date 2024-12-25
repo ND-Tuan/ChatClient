@@ -9,10 +9,6 @@ const {
 
 // Tạo bảng user và message nếu chưa tồn tại
 db.serialize(() => {
-    db.run(`DROP TABLE IF EXISTS users`);
-
-    db.run(`DROP TABLE IF EXISTS messages`);
-
     //tạo bảng KeyPairs (gồm caKeyPair và govKeyPair) (type: ca, gov)
     db.run(`CREATE TABLE IF NOT EXISTS KeyPairs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,11 +199,14 @@ function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
 }
 
 // Lấy tin nhắn liên quan đến một user
-function getMessagesForUser(username) {
+function getMessagesForUser(user1, user2) {
     return new Promise((resolve, reject) => {
         db.all(
-            `SELECT sender, recipient, header, ciphertext, ctinGOV FROM messages WHERE sender = ? OR recipient = ? ORDER BY timestamp`,
-            [username, username],
+            `SELECT sender, recipient, header, ciphertext, ctinGOV 
+             FROM messages 
+             WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?) 
+             ORDER BY timestamp`,
+            [user1, user2, user2, user1],
             (err, rows) => {
                 if (err) {
                     reject(err);

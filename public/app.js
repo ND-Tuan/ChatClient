@@ -119,7 +119,7 @@ function updateUserList(users) {
 
 // Tải lịch sử chat
 async function loadChatWithUser(user) {
-    const response = await fetch(`/messages/${myUsername}`);
+    const response = await fetch(`/messages/${user}`);
     const messages = await response.json();
 
     chatContainer.innerHTML = '';

@@ -23,7 +23,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const db = require('./database');
+const db = require('./database.js');
 
 const app = express();
 const server = http.createServer(app);
@@ -69,8 +69,7 @@ const govDecrypt = async function (secret, [header, ct, ctGov]) {
 let onlineUsers = {}; // Danh sách người dùng trực tuyến
 let caKeyPair
 let govKeyPair
-let NewUser
-let User 
+let  myUsername = '';
 
 // Khởi tạo các khóa và MessengerClient
 async function initializeKeysAndClient() {
@@ -133,11 +132,21 @@ initializeKeysAndClient().then(() => {
         const messages = await db.getMessagesForUser(username);
         
         //Nhận chứng chỉ từ user
-        const { certificate, Signature } = user;
+        const {certificate, Signature } = user;
+
+        let arrayBufferSignature;
+        if (typeof Signature === 'object' && Signature !== null) {
+            // Assuming Signature is an object that needs to be serialized
+            const jsonString = JSON.stringify(Signature);
+            const buffer = Buffer.from(jsonString);
+            arrayBufferSignature = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        }
+
+        console.log('Type of Signature:', typeof arrayBufferSignature);
 
         //Khởi tạo clientclient
         const receiverClient = new MessengerClient(caKeyPair.pub, govKeyPair.pub);
-        await receiverClient.receiveCertificate(certificate, Signature);
+        await receiverClient.receiveCertificate(certificate, arrayBufferSignature);
 
         // Giải mã tin nhắn
         const decryptedMessages = await Promise.all(messages.map(async (message) => {
@@ -204,6 +213,8 @@ initializeKeysAndClient().then(() => {
             
             await db.setUserActive(username, true);
             onlineUsers[username] = socket.id;
+
+            myUsername = username;
             
             socket.emit('loginSuccess', { username });
             io.emit('updateUsers', Object.keys(onlineUsers));
@@ -216,10 +227,21 @@ initializeKeysAndClient().then(() => {
             // lấy chứng chỉ của người nhận
             const recipientUser = await db.getUser(recipient);
             const { certificate, Signature } = recipientUser;
+
+            
+            let arrayBufferSignature;
+            if (typeof Signature === 'object' && Signature !== null) {
+                // Assuming Signature is an object that needs to be serialized
+                const jsonString = JSON.stringify(Signature);
+                const buffer = Buffer.from(jsonString);
+                arrayBufferSignature = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            }
+
+            console.log('Type of Signature:', typeof arrayBufferSignature);
             
             // Khởi tạo MessengerClient
             const senderClient = new MessengerClient(caKeyPair.pub, govKeyPair.pub);
-            await senderClient.receiveCertificate(certificate, Signature);
+            await senderClient.receiveCertificate(certificate, arrayBufferSignature);
 
             // Mã hóa tin nhắn bằng User.sendMessage
             const [header, ciphertext, ctinGOV] = await senderClient.sendMessage(recipient, plaintext);
@@ -235,15 +257,13 @@ initializeKeysAndClient().then(() => {
             }
         });
 
-       
-
         // Xử lý ngắt kết nối
         socket.on('disconnect', async () => {
             for (const username in onlineUsers) {
                 if (onlineUsers[username] === socket.id) {
                     console.log(`${username} đã ngắt kết nối.`);
                     delete onlineUsers[username];
-
+                    myUsername = '';
                     // Đánh dấu user không active
                     await setUserActive(username, false);
                     break;
