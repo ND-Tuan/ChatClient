@@ -9,18 +9,25 @@ const {
 
 // Tạo bảng user và message nếu chưa tồn tại
 db.serialize(() => {
+    db.run(`drop table if exists users`);
+
+    db.run(`drop table if exists messages`);
+
     //tạo bảng KeyPairs (gồm caKeyPair và govKeyPair) (type: ca, gov)
     db.run(`CREATE TABLE IF NOT EXISTS KeyPairs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT,
         publicKey TEXT,
         privateKey TEXT
-      )`);
+      )`
+    );
 
     db.run(`
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
+            password TEXT,
             publicKey TEXT,
+            privateKey TEXT,
             CertSignature BLOB,
             isActive INTEGER DEFAULT 0
         )
@@ -31,10 +38,14 @@ db.serialize(() => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sender TEXT,
             recipient TEXT,
-            header TEXT,
-            ciphertext TEXT,
-            ctinGOV TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            iv BLOB,
+            senderPubKey TEXT,
+            cGov BLOB,
+            vGov TEXT,
+            ivGov BLOB,
+            timestamp INTEGER,
+            ciphertext BlOB,
+            ctinGOV BlOB
         )
     `);
     // Kiểm tra và thêm cột isActive nếu chưa tồn tại
@@ -93,16 +104,34 @@ async function getKeyPair(type) { //(type: ca, gov)
 }
 
 // Thêm user mới
-function addUser(username, publicKey, CertSignature) {
+function addUser(username, password, publicKey, privateKey, CertSignature) {
     return new Promise((resolve, reject) => {
         db.run(
-            `INSERT INTO users (username, publicKey, CertSignature) VALUES (?, ?, ?)`,
-            [username, JSON.stringify(publicKey), ArrayBuffertoBuffer(CertSignature)],
+            `INSERT INTO users (username, password, publicKey, privateKey, CertSignature) VALUES (?, ?, ?, ?, ?)`,
+            [username, password, JSON.stringify(publicKey), JSON.stringify(privateKey), ArrayBuffertoBuffer(CertSignature)],
             (err) => {
                 if (err) reject(err);
                 else resolve();
             }
         );
+    });
+}
+
+function logIn(username, password) {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT  publicKey, privateKey FROM users WHERE username = ? AND password = ?`, [username, password], (err, row) => {
+            if (err) {
+                return reject(err);
+            }
+            if (row && row.publicKey && row.privateKey) {
+                resolve({
+                    pub: JSON.parse(row.publicKey),
+                    sec: JSON.parse(row.privateKey)
+                });
+            } else {
+                resolve(null);
+            }
+        });
     });
 }
 
@@ -146,7 +175,7 @@ function getUser(username) {
                     };
                     resolve({
                         certificate,
-                        Signature: BufferToArrayBuffer(row.CertSignature)
+                        Signature: row.CertSignature
                     });
                 } else {
                     resolve(null);
@@ -188,8 +217,30 @@ function isUserActive(username) {
 function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
     return new Promise((resolve, reject) => {
         db.run(
-            `INSERT INTO messages (sender, recipient, header, ciphertext, ctinGOV) VALUES (?, ?, ?, ?, ?)`,
-            [sender, recipient, JSON.stringify(header), ciphertext, ctinGOV],
+            `INSERT INTO messages (
+                sender, 
+                recipient,  
+                iv,
+                senderPubKey,
+                cGov,
+                vGov,
+                ivGov,
+                timestamp, 
+                ciphertext, 
+                ctinGOV
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                sender,
+                recipient,
+                Buffer.from(header.iv),
+                JSON.stringify(header.sender),
+                ArrayBuffertoBuffer(header.cGov),
+                JSON.stringify(header.vGov),
+                header.ivGov,
+                header.timestamp,
+                ArrayBuffertoBuffer(ciphertext),
+                ArrayBuffertoBuffer(ctinGOV)
+            ],
+            
             (err) => {
                 if (err) reject(err);
                 else resolve();
@@ -202,7 +253,17 @@ function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
 function getMessagesForUser(user1, user2) {
     return new Promise((resolve, reject) => {
         db.all(
-            `SELECT sender, recipient, header, ciphertext, ctinGOV 
+            `SELECT 
+                sender, 
+                recipient, 
+                iv,
+                senderPubKey,
+                cGov,
+                vGov,
+                ivGov,
+                timestamp,
+                ciphertext, 
+                ctinGOV 
              FROM messages 
              WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?) 
              ORDER BY timestamp`,
@@ -214,7 +275,15 @@ function getMessagesForUser(user1, user2) {
                     const messages = rows.map(row => ({
                         sender: row.sender,
                         recipient: row.recipient,
-                        ct: [JSON.parse(row.header), row.ciphertext, row.ctinGOV]
+                        iv: row.iv,
+                        senderPubKey: row.senderPubKey, 
+                        cGov: row.cGov,
+                        vGov: row.vGov,
+                        ivGov: new Uint8Array(row.ivGov),
+                        timestamp: row.timestamp,
+                        ciphertext :row.ciphertext, 
+                        ctinGOV: row.ctinGOV
+                        
                     }));
                     resolve(messages);
                 }
@@ -227,6 +296,7 @@ module.exports = {
     saveKeyPair,
     getKeyPair,
     addUser,
+    logIn,
     deleteUser,
     getAllUsers,
     getUser,

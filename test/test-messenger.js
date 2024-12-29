@@ -40,7 +40,8 @@ const stringifyCert = function (cert) {
 // Decrypt a message using the government secret key
 const govDecrypt = async function (secret, [header, ct, ctGov]) {
   // headers MUST have the field "vGov"!!!
-  let govKey = await computeDH(secret, header.vGov)
+  let govPub = await jsonToCryptoKey(header.vGov, { name: 'ECDH', namedCurve: 'P-384' }, [])
+  let govKey = await computeDH(secret, govPub)
   govKey = await HMACtoAESKey(govKey, govEncryptionDataStr)
 
   // headers MUST have the field "cGov" and "ivGov"!!!
@@ -142,10 +143,26 @@ describe('Messenger', function () {
       const bobCertSignature = await signWithECDSA(caKeyPair.sec, stringifyCert(bobCertificate))
       await alice.receiveCertificate(bobCertificate, bobCertSignature)
       await bob.receiveCertificate(aliceCertificate, aliceCertSignature)
-      const message = 'Hello, Bob'
+      let message = 'Hello, Bob'
       const ct = await alice.sendMessage('bob', message)
 
       const result = await bob.receiveMessage('alice', ct)
+      expect(result).to.equal(message)
+    })
+
+    it('alice can recieve an encrypted message from alice', async function () {
+      const alice = new MessengerClient(caKeyPair.pub, govKeyPair.pub)
+      const bob = new MessengerClient(caKeyPair.pub, govKeyPair.pub)
+      const aliceCertificate = await alice.generateCertificate('alice')
+      const bobCertificate = await bob.generateCertificate('bob')
+      const aliceCertSignature = await signWithECDSA(caKeyPair.sec, stringifyCert(aliceCertificate))
+      const bobCertSignature = await signWithECDSA(caKeyPair.sec, stringifyCert(bobCertificate))
+      await alice.receiveCertificate(bobCertificate, bobCertSignature)
+      await bob.receiveCertificate(aliceCertificate, aliceCertSignature)
+      const message = 'Hello, Bob'
+      const ct = await alice.sendMessage('bob', message)
+
+      const result = await alice.viewSentMessage('bob', ct)
       expect(result).to.equal(message)
     })
 

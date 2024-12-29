@@ -11,12 +11,13 @@
         <!-- Sidebar (Danh sách người dùng) -->
         <div id="sidebar">
             <div id="auth-section">
-                <button id="create-user-button">Create User</button>
-                <button id="login-button">Login</button>
-                <button id="delete-user-button">Delete User</button>
-                <button id="logout-button" style="display: none;">Logout</button>
+                <button class="fuction-button" id="create-user-button">Create User</button>
+                <button class="fuction-button" id="login-button">Login</button>
+                <button class="fuction-button" id="delete-user-button">Delete User</button>
+                <button class="fuction-button" id="logout-button" style="display: none;">Logout</button>
+                <button class="logger-button" id="logged-in-user"></button>
+                
             </div>
-            <p id="logged-in-user"></p>
             <div id="user-list" class="user-list">
                 <!-- Danh sách người dùng -->
             </div>
@@ -24,6 +25,9 @@
 
         <!-- Chat Window -->
         <div id="chat-window">
+            <div class="chat_header" id="chat-header">
+                <p style="margin: 8px;" id="chat-header-text">Select a user to chat with</p>
+            </div>
             <div id="chat-container" class="chat-container">
                 <!-- Nội dung chat -->
             </div>
@@ -37,7 +41,11 @@
             </div>
         </div>
     </div>
+
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
+
+    
 </body>
 </html>

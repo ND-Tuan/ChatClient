@@ -62,7 +62,8 @@ function ArrayBuffertoBuffer(byteArray) {
   return Buffer.from(byteArray);
 }
 
-async function BufferToArrayBuffer(buffer) {
+async function BufferToArrayBuffer(bf) {
+  const buffer = bf;
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
@@ -166,7 +167,9 @@ async function encryptWithGCM (key, plaintext, iv, authenticatedData = '') {
   // not be possible to decrypt the ciphertext unless it is passed.
   // (If there is no authenticatedData passed when encrypting, then it is not
   // necessary while decrypting.)
-  return await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: Buffer.from(authenticatedData) }, key, Buffer.from(plaintext))
+  let text = "";
+  text = plaintext;
+  return await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: Buffer.from(authenticatedData) }, key, Buffer.from(text))
 }
 
 async function decryptWithGCM (key, ciphertext, iv, authenticatedData = '') {

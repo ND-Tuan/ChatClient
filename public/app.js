@@ -18,14 +18,17 @@ const uploadFileButton = document.getElementById('upload-file-button');
 // Đăng ký user
 createUserButton.addEventListener('click', async () => {
     const username = prompt('Enter new username:');
+    const password = prompt('Enter your password:');
     const response = await fetch('/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ username, password }),
     });
 
     if (response.ok) {
-        alert('User created successfully!');
+        alert('Registered successfully!');
+        myUsername = username;
+        socket.emit('login', { username, password });
     } else {
         const { message } = await response.json();
         alert(message);
@@ -35,7 +38,8 @@ createUserButton.addEventListener('click', async () => {
 // Đăng nhập user
 loginButton.addEventListener('click', () => {
     myUsername = prompt('Enter your username:');
-    socket.emit('login', myUsername);
+    const password = prompt('Enter your password:');
+    socket.emit('login', {myUsername, password});
 });
 
 // Đăng xuất
@@ -78,13 +82,14 @@ socket.on('loginError', (error) => {
 
 // Gửi tin nhắn
 sendButton.addEventListener('click', () => {
-    const message = messageInput.value;
+    let message = ""
+    message = messageInput.value;
 
     if (currentRecipient) {
         socket.emit('message', {
             sender: myUsername,
             recipient: currentRecipient,
-            ciphertext: message,
+            text: message,
         });
 
         addMessageToChat(`You: ${message}`, 'sent');
@@ -95,9 +100,9 @@ sendButton.addEventListener('click', () => {
 });
 
 // Xử lý tin nhắn nhận được
-socket.on('message', ({ sender, ciphertext }) => {
+socket.on('message', ({sender}) => {
     if (currentRecipient === sender) {
-        addMessageToChat(`${sender}: ${ciphertext}`, 'received');
+        loadChatWithUser(sender);
     }
 });
 
@@ -144,20 +149,22 @@ function updateUserList(users) {
 }
 
 // Tải lịch sử chat
-async function loadChatWithUser(user) {
-    const response = await fetch(`/messages/${user}`);
+async function loadChatWithUser(selectedUser) {
+    const response = await fetch(`/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedUser, myUsername})
+    });
     const messages = await response.json();
 
     chatContainer.innerHTML = '';
-    messages
-        .filter((msg) => msg.sender === user || msg.recipient === user)
-        .forEach((msg) => {
-            if (msg.url) {
-                addMessageToChat(`<a href="${msg.url}" target="_blank">${msg.filename}</a>`, msg.sender === myUsername ? 'sent' : 'received');
-            } else {
-                addMessageToChat(`${msg.sender}: ${msg.ciphertext}`, msg.sender === myUsername ? 'sent' : 'received');
-            }
-        });
+    messages.forEach((msg) => {
+    if (msg.url) {
+        addMessageToChat(`<a href="${msg.url}" target="_blank">${msg.filename}</a>`, msg.sender === myUsername ? 'sent' : 'received');
+    } else {
+        addMessageToChat(`${msg.sender}: ${msg.decryptedMessage}`, msg.sender === myUsername ? 'sent' : 'received');
+    }
+});
 }
 
 // Hiển thị tin nhắn trong box chat

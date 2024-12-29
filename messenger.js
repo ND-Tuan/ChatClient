@@ -25,7 +25,7 @@ const {
 /** ******* Implementation ********/
 
 class MessengerClient {
-  constructor (certAuthorityPublicKey, govPublicKey) {
+  constructor (certAuthorityPublicKey, govPublicKey, publicKey, privateKey) {
     // the certificate authority DSA public key is used to
     // verify the authenticity and integrity of certificates
     // of other users (see handout and receiveCertificate)
@@ -36,7 +36,7 @@ class MessengerClient {
     this.govPublicKey = govPublicKey
     this.conns = {} // data for each active connection
     this.certs = {} // certificates of other users
-    this.EGKeyPair = {} // keypair from generateCertificate
+    this.EGKeyPair = {pub: publicKey, sec: privateKey } // keypair from generateCertificate
     this.receivedMessages = new Map()
   }
 
@@ -58,6 +58,11 @@ class MessengerClient {
     return certificate
   }
 
+  async getSecretKey () {
+    const secretKey = await cryptoKeyToJSON(this.EGKeyPair.sec)
+    return secretKey
+  }
+
   /**
    * Receive and store another user's certificate.
    *
@@ -70,6 +75,9 @@ class MessengerClient {
 
   async receiveCertificate (certificate, signature) {
     
+    if (this.certs[certificate.username]) {
+      return;
+    }
 
     const isValid = await verifyWithECDSA(this.caPublicKey, JSON.stringify(certificate), signature)
     if (!isValid) {
@@ -137,14 +145,12 @@ class MessengerClient {
 
     // Encrypt message for government
     const ctinGOV = await encryptWithGCM(govKey, plaintext, iv)
-
     const header = {
       iv,
       sender: JSON.stringify(await cryptoKeyToJSON(this.EGKeyPair.pub)),
       cGov,
       vGov,
       ivGov,
-      receiverIV: iv,
       timestamp: Date.now()
     }
     return [header, ciphertext, ctinGOV]
@@ -192,6 +198,30 @@ class MessengerClient {
     )
 
     const sharedSecret = await computeDH(this.EGKeyPair.sec, senderPubKey)
+    const aesKey = await HMACtoAESKey(sharedSecret, govEncryptionDataStr)
+
+    const plaintextBuffer = await decryptWithGCM(aesKey, ciphertext, header.iv)
+    const plaintext = bufferToString(plaintextBuffer)
+
+    return plaintext
+  }
+
+  async viewSentMessage (name, [header, ciphertext, ctinGOV]) {
+
+    // Import recipient public key
+    const recipientCert = this.certs[name]
+    if (!recipientCert) {
+      throw new Error(`Certificate for user ${name} does not exist.`)
+    }
+    const recipientPublicKey = await subtle.importKey(
+      'jwk',
+      recipientCert.pubKey,
+      { name: 'ECDH', namedCurve: 'P-384' },
+      true,
+      []
+    )
+
+    const sharedSecret = await computeDH(this.EGKeyPair.sec, recipientPublicKey)
     const aesKey = await HMACtoAESKey(sharedSecret, govEncryptionDataStr)
 
     const plaintextBuffer = await decryptWithGCM(aesKey, ciphertext, header.iv)
