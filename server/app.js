@@ -23,6 +23,7 @@ const {
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const multer = require('multer');
 const path = require('path');
 const db = require('./database.js');
 
@@ -52,6 +53,17 @@ const stringifyCert = function (cert) {
     }
 }
 
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+      cb(null, Date.now() + '$$' + file.originalname);
+    }
+  });
+  
+const upload = multer({ storage: storage });
+
 // Giải mã cho chính phủ
 const govDecrypt = async function (secret, [header, ct, ctGov]) {
     // headers MUST have the field "vGov"!!!
@@ -67,6 +79,7 @@ const govDecrypt = async function (secret, [header, ct, ctGov]) {
     return bufferToString(plaintext)
 }
 
+let allUsers = {};
 let onlineUsers = {}; // Danh sách người dùng trực tuyến
 let caKeyPair;
 let govKeyPair;
@@ -138,7 +151,7 @@ initializeKeysAndClient().then(() => {
 
         // Giải mã tin nhắn
         const decryptedMessages = await Promise.all(messages.map(async (message) => {
-            const { sender, recipient, iv, senderPubKey, timestamp, ciphertext, ctinGOV } = message;
+            const { sender, recipient, iv, senderPubKey, timestamp, ciphertext, ctinGOV, type } = message;
 
             const arrayBufferCiphertext = await BufferToArrayBuffer(ciphertext);
             const arrayBufferctinGOV = await BufferToArrayBuffer(ctinGOV);
@@ -164,7 +177,8 @@ initializeKeysAndClient().then(() => {
             return {
                 sender,
                 recipient,
-                decryptedMessage
+                decryptedMessage,
+                type
             };
         }));
 
@@ -203,6 +217,16 @@ initializeKeysAndClient().then(() => {
         res.json({ success: true });
     });
 
+    app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+    app.post('/upload', upload.single('file'), (req, res) => {
+        if (!req.file) {
+            return res.status(400).send('No file uploaded.');
+        }
+        const filePath = `/uploads/${req.file.filename}`;
+        res.json({ url: filePath });
+    });
+
     // Xử lý WebSocket
     io.on('connection', (socket) => {
         console.log(`User connected: ${socket.id}`);
@@ -212,19 +236,21 @@ initializeKeysAndClient().then(() => {
             const { username, password } = data;
             const user = await db.logIn(username, password);
 
+            console.log(`${username} : pass: ${password}.`);
+
             if (!user) {
                 socket.emit('loginError', 'Tên đăng nhập và mật khẩu không chính xác.');
                 return;
             }
 
-            const isActive = await db.isUserActive(username);
-            if (isActive) {
-                socket.emit('loginError', 'User đã được đăng nhập trên thiết bị khác.');
-                return;
-            }
+            // const isActive = await db.isUserActive(username);
+            // if (isActive) {
+            //     socket.emit('loginError', 'User đã được đăng nhập trên thiết bị khác.');
+            //     return;
+            // }
 
             await db.setUserActive(username, true);
-            onlineUsers[username] = { socketId: socket.id, username };
+            onlineUsers[username] = {socketId: socket.id, username};
 
             // lấy khóa của user
             const userKeyPair = {
@@ -236,12 +262,15 @@ initializeKeysAndClient().then(() => {
             onlineUsers[username].client = new MessengerClient(caKeyPair.pub, govKeyPair.pub, userKeyPair.pub, userKeyPair.sec);
 
             socket.emit('loginSuccess', { username });
-            io.emit('updateUsers', Object.keys(onlineUsers));
+
+            const users = await db.getAllUsers();
+
+            io.emit('updateUsers', users.map((user) => user.username));
         });
 
         // Xử lý gửi tin nhắn
         socket.on('message', async (data) => {
-            const { sender, recipient, text } = data;
+            const { sender, recipient, text, type } = data;
             let message = "";
             message = text;
 
@@ -258,7 +287,7 @@ initializeKeysAndClient().then(() => {
             const [header, ciphertext, ctinGOV] = await onlineUsers[sender].client.sendMessage(recipient, message);
 
             // Lưu tin nhắn vào cơ sở dữ liệu
-            await db.addMessage(sender, recipient, header, ciphertext, ctinGOV);
+            await db.addMessage(sender, recipient, header, ciphertext, ctinGOV, type);
 
             // Kiểm tra xem người nhận có trực tuyến không
             const recipientSocketId = onlineUsers[recipient]?.socketId;
@@ -279,7 +308,6 @@ initializeKeysAndClient().then(() => {
                     break;
                 }
             }
-            io.emit('updateUsers', Object.keys(onlineUsers));
         });
     });
 

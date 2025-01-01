@@ -9,10 +9,7 @@ const {
 
 // Tạo bảng user và message nếu chưa tồn tại
 db.serialize(() => {
-    db.run(`drop table if exists users`);
-
-    db.run(`drop table if exists messages`);
-
+    
     //tạo bảng KeyPairs (gồm caKeyPair và govKeyPair) (type: ca, gov)
     db.run(`CREATE TABLE IF NOT EXISTS KeyPairs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +42,8 @@ db.serialize(() => {
             ivGov BLOB,
             timestamp INTEGER,
             ciphertext BlOB,
-            ctinGOV BlOB
+            ctinGOV BlOB,
+            type TEXT
         )
     `);
     // Kiểm tra và thêm cột isActive nếu chưa tồn tại
@@ -157,7 +155,7 @@ function getAllUsers() {
     return new Promise((resolve, reject) => {
         db.all(`SELECT username FROM users`, [], (err, rows) => {
             if (err) reject(err);
-            else resolve(rows.map((row) => row.username));
+            else resolve(rows.map((row) => ({ name: row.username })));
         });
     });
 }
@@ -214,7 +212,7 @@ function isUserActive(username) {
 }
 
 // Thêm tin nhắn mới
-function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
+function addMessage(sender, recipient, header, ciphertext, ctinGOV, type) {
     return new Promise((resolve, reject) => {
         db.run(
             `INSERT INTO messages (
@@ -227,8 +225,9 @@ function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
                 ivGov,
                 timestamp, 
                 ciphertext, 
-                ctinGOV
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                ctinGOV,
+                type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 sender,
                 recipient,
                 Buffer.from(header.iv),
@@ -238,7 +237,8 @@ function addMessage(sender, recipient, header, ciphertext, ctinGOV) {
                 header.ivGov,
                 header.timestamp,
                 ArrayBuffertoBuffer(ciphertext),
-                ArrayBuffertoBuffer(ctinGOV)
+                ArrayBuffertoBuffer(ctinGOV),
+                type
             ],
             
             (err) => {
@@ -263,7 +263,8 @@ function getMessagesForUser(user1, user2) {
                 ivGov,
                 timestamp,
                 ciphertext, 
-                ctinGOV 
+                ctinGOV,
+                type
              FROM messages 
              WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?) 
              ORDER BY timestamp`,
@@ -282,7 +283,8 @@ function getMessagesForUser(user1, user2) {
                         ivGov: new Uint8Array(row.ivGov),
                         timestamp: row.timestamp,
                         ciphertext :row.ciphertext, 
-                        ctinGOV: row.ctinGOV
+                        ctinGOV: row.ctinGOV,
+                        type: row.type
                         
                     }));
                     resolve(messages);

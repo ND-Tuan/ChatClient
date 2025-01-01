@@ -171,22 +171,22 @@ class MessengerClient {
       throw new Error('Sender certificate not found')
     }
 
-    // Detect replay attacks
-    const messageId = `${header.sender}-${header.iv}-${header.timestamp}`
-    const currentTime = Date.now()
-    const oneYearInMillis = 7 * 24 * 60 * 60 * 1000
+    // // Detect replay attacks
+    // const messageId = `${header.sender}-${header.iv}-${header.timestamp}`
+    // const currentTime = Date.now()
+    // const oneYearInMillis = 7 * 24 * 60 * 60 * 1000
 
-    // Clean up old messages
-    for (const [id, timestamp] of this.receivedMessages) {
-      if (currentTime - timestamp > oneYearInMillis) {
-        this.receivedMessages.delete(id)
-      }
-    }
+    // // Clean up old messages
+    // for (const [id, timestamp] of this.receivedMessages) {
+    //   if (currentTime - timestamp > oneYearInMillis) {
+    //     this.receivedMessages.delete(id)
+    //   }
+    // }
 
-    if (this.receivedMessages.has(messageId)) {
-      throw new Error('Replay attack detected')
-    }
-    this.receivedMessages.set(messageId, currentTime)
+    // if (this.receivedMessages.has(messageId)) {
+    //   throw new Error('Replay attack detected')
+    // }
+    // this.receivedMessages.set(messageId, currentTime)
 
     // Import sender public key
     const senderPubKey = await subtle.importKey(
